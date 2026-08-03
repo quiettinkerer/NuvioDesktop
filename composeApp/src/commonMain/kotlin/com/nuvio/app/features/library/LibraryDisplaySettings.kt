@@ -20,12 +20,31 @@ enum class LibrarySortOption {
     ADDED_ASC,
     TITLE_ASC,
     TITLE_DESC,
+    RATING_DESC,
+    RATING_ASC,
+    RELEASE_DATE_DESC,
+    RELEASE_DATE_ASC,
+    LAST_WATCHED_DESC,
+    SHELF_GROUP,
+}
+
+enum class LibraryViewFilterMode {
+    EXCLUSIVE,
+    INCLUSIVE,
 }
 
 data class LibraryDisplaySettingsUiState(
     val layoutMode: LibraryLayoutMode = LibraryLayoutMode.HORIZONTAL,
-    val sortOption: LibrarySortOption = LibrarySortOption.DEFAULT,
-)
+    val savedSortOption: LibrarySortOption = LibrarySortOption.ADDED_DESC,
+    val shelvesSortOption: LibrarySortOption = LibrarySortOption.DEFAULT,
+    val selectedShelfKey: String? = null,
+    val viewFilterMode: LibraryViewFilterMode = LibraryViewFilterMode.INCLUSIVE,
+    val showPrivateVault: Boolean = false,
+    val showNSFW: Boolean = false,
+) {
+    val sortOption: LibrarySortOption
+        get() = savedSortOption
+}
 
 object LibraryDisplaySettingsRepository {
     private val _uiState = MutableStateFlow(LibraryDisplaySettingsUiState())
@@ -54,10 +73,46 @@ object LibraryDisplaySettingsRepository {
         persist()
     }
 
-    fun setSortOption(sortOption: LibrarySortOption) {
+    fun setSelectedShelfKey(shelfKey: String?) {
         ensureLoaded()
-        if (_uiState.value.sortOption == sortOption) return
-        _uiState.value = _uiState.value.copy(sortOption = sortOption)
+        if (_uiState.value.selectedShelfKey == shelfKey) return
+        _uiState.value = _uiState.value.copy(selectedShelfKey = shelfKey)
+        persist()
+    }
+
+    fun setSortOption(sortOption: LibrarySortOption, isSavedMode: Boolean = true) {
+        ensureLoaded()
+        val current = _uiState.value
+        val updated = current.copy(savedSortOption = sortOption, shelvesSortOption = sortOption)
+        if (current == updated) return
+        _uiState.value = updated
+        persist()
+    }
+
+    fun setViewFilterMode(viewFilterMode: LibraryViewFilterMode) {
+        ensureLoaded()
+        if (_uiState.value.viewFilterMode == viewFilterMode) return
+        _uiState.value = _uiState.value.copy(viewFilterMode = viewFilterMode)
+        persist()
+    }
+
+    fun setShowPrivateVault(show: Boolean) {
+        ensureLoaded()
+        if (_uiState.value.showPrivateVault == show) return
+        _uiState.value = _uiState.value.copy(showPrivateVault = show)
+        persist()
+    }
+
+    fun setShowNSFW(show: Boolean) {
+        ensureLoaded()
+        if (_uiState.value.showNSFW == show) return
+        _uiState.value = _uiState.value.copy(showNSFW = show)
+        persist()
+    }
+
+    fun togglePrivateVault() {
+        ensureLoaded()
+        _uiState.value = _uiState.value.copy(showPrivateVault = !_uiState.value.showPrivateVault)
         persist()
     }
 
@@ -86,9 +141,9 @@ internal data class LibraryVerticalProjection(
 
 internal fun availableLibrarySortOptions(sourceMode: LibrarySourceMode): List<LibrarySortOption> =
     if (sourceMode.isRemoteTrackingSource) {
-        LibrarySortOption.entries
+        LibrarySortOption.entries.filterNot { it == LibrarySortOption.SHELF_GROUP }
     } else {
-        LibrarySortOption.entries.filterNot { it == LibrarySortOption.DEFAULT }
+        LibrarySortOption.entries.filterNot { it == LibrarySortOption.DEFAULT || it == LibrarySortOption.SHELF_GROUP }
     }
 
 internal fun effectiveLibrarySortOption(
@@ -129,6 +184,40 @@ internal fun sortLibraryItems(
         )
         LibrarySortOption.TITLE_DESC -> items.sortedWith(
             compareByDescending<LibraryItem> { libraryTitleSortKey(it) }
+                .thenBy { it.id },
+        )
+        LibrarySortOption.RATING_DESC -> items.sortedWith(
+            compareByDescending<LibraryItem> { it.imdbRating?.toFloatOrNull() ?: 0f }
+                .thenBy { libraryTitleTieBreakKey(it) }
+                .thenBy { it.id },
+        )
+        LibrarySortOption.RATING_ASC -> items.sortedWith(
+            compareBy<LibraryItem> { it.imdbRating?.toFloatOrNull() ?: Float.MAX_VALUE }
+                .thenBy { libraryTitleTieBreakKey(it) }
+                .thenBy { it.id },
+        )
+        LibrarySortOption.RELEASE_DATE_DESC -> items.sortedWith(
+            compareByDescending<LibraryItem> { extractNormalizedReleaseDateKey(it).isNotBlank() }
+                .thenByDescending { extractNormalizedReleaseDateKey(it) }
+                .thenBy { libraryTitleTieBreakKey(it) }
+                .thenBy { it.id },
+        )
+        LibrarySortOption.RELEASE_DATE_ASC -> items.sortedWith(
+            compareByDescending<LibraryItem> { extractNormalizedReleaseDateKey(it).isNotBlank() }
+                .thenBy { extractNormalizedReleaseDateKey(it) }
+                .thenBy { libraryTitleTieBreakKey(it) }
+                .thenBy { it.id },
+        )
+        LibrarySortOption.LAST_WATCHED_DESC -> items.sortedWith(
+            compareByDescending<LibraryItem> { it.lastWatchedAtEpochMs ?: 0L }
+                .thenByDescending { it.savedAtEpochMs }
+                .thenBy { libraryTitleTieBreakKey(it) }
+                .thenBy { it.id },
+        )
+        LibrarySortOption.SHELF_GROUP -> items.sortedWith(
+            compareBy<LibraryItem> { LibraryShelf.fromKey(it.shelf)?.ordinal ?: Int.MAX_VALUE }
+                .thenByDescending { it.savedAtEpochMs }
+                .thenBy { libraryTitleTieBreakKey(it) }
                 .thenBy { it.id },
         )
     }
@@ -201,6 +290,12 @@ internal fun encodeLibraryDisplaySettings(state: LibraryDisplaySettingsUiState):
         StoredLibraryDisplaySettings(
             layoutMode = state.layoutMode.name,
             sortOption = state.sortOption.name,
+            savedSortOption = state.savedSortOption.name,
+            shelvesSortOption = state.shelvesSortOption.name,
+            selectedShelfKey = state.selectedShelfKey,
+            viewFilterMode = state.viewFilterMode.name,
+            showPrivateVault = state.showPrivateVault,
+            showNSFW = state.showNSFW,
         ),
     )
 
@@ -212,13 +307,29 @@ internal fun decodeLibraryDisplaySettings(payload: String?): LibraryDisplaySetti
                 LibraryDisplaySettingsJson.decodeFromString<StoredLibraryDisplaySettings>(value)
             }.getOrNull()
         }
+
+    val savedSort = stored?.savedSortOption
+        ?.let { value -> LibrarySortOption.entries.firstOrNull { it.name == value } }
+        ?: stored?.sortOption?.let { value -> LibrarySortOption.entries.firstOrNull { it.name == value } }
+        ?: LibrarySortOption.ADDED_DESC
+
+    val shelvesSort = stored?.shelvesSortOption
+        ?.let { value -> LibrarySortOption.entries.firstOrNull { it.name == value } }
+        ?: stored?.sortOption?.let { value -> LibrarySortOption.entries.firstOrNull { it.name == value } }
+        ?: LibrarySortOption.DEFAULT
+
     return LibraryDisplaySettingsUiState(
         layoutMode = stored?.layoutMode
             ?.let { value -> LibraryLayoutMode.entries.firstOrNull { it.name == value } }
             ?: LibraryLayoutMode.HORIZONTAL,
-        sortOption = stored?.sortOption
-            ?.let { value -> LibrarySortOption.entries.firstOrNull { it.name == value } }
-            ?: LibrarySortOption.DEFAULT,
+        savedSortOption = savedSort,
+        shelvesSortOption = shelvesSort,
+        selectedShelfKey = stored?.selectedShelfKey,
+        viewFilterMode = stored?.viewFilterMode
+            ?.let { value -> LibraryViewFilterMode.entries.firstOrNull { it.name == value } }
+            ?: LibraryViewFilterMode.INCLUSIVE,
+        showPrivateVault = stored?.showPrivateVault ?: false,
+        showNSFW = stored?.showNSFW ?: false,
     )
 }
 
@@ -227,17 +338,48 @@ private val LibraryDisplaySettingsJson = Json {
     encodeDefaults = true
 }
 
-private val LeadingLibraryTitleArticle = Regex("^(the|an|a)\\s+", RegexOption.IGNORE_CASE)
-
 private fun libraryTitleSortKey(item: LibraryItem): String =
     libraryTitleTieBreakKey(item)
-        .trim()
-        .replace(LeadingLibraryTitleArticle, "")
 
 private fun libraryTitleTieBreakKey(item: LibraryItem): String =
     item.name
         .ifBlank { item.id }
         .lowercase()
+
+private fun extractNormalizedReleaseDateKey(item: LibraryItem, isDescending: Boolean = false): String {
+    val raw = item.rawReleaseDate?.trim().orEmpty().ifBlank { item.releaseInfo.orEmpty().trim() }
+    if (raw.isBlank()) return ""
+
+    val fullDateMatch = Regex("\\b(18|19|20)\\d{2}[-/]\\d{1,2}[-/]\\d{1,2}\\b").find(raw)?.value
+    if (fullDateMatch != null) {
+        val parts = fullDateMatch.split('-', '/')
+        if (parts.size == 3) {
+            val y = parts[0]
+            val m = parts[1].padStart(2, '0')
+            val d = parts[2].padStart(2, '0')
+            return "$y-$m-$d"
+        }
+    }
+
+    val yearMonthMatch = Regex("\\b(18|19|20)\\d{2}[-/]\\d{1,2}\\b").find(raw)?.value
+    if (yearMonthMatch != null) {
+        val parts = yearMonthMatch.split('-', '/')
+        if (parts.size == 2) {
+            val y = parts[0]
+            val m = parts[1].padStart(2, '0')
+            val dayPad = if (isDescending) "31" else "01"
+            return "$y-$m-$dayPad"
+        }
+    }
+
+    val yearMatch = Regex("\\b(18|19|20)\\d{2}\\b").find(raw)?.value
+    if (yearMatch != null) {
+        val monthDay = if (isDescending) "-12-31" else "-01-01"
+        return "$yearMatch$monthDay"
+    }
+
+    return raw.lowercase()
+}
 
 private fun libraryDisplayItemKey(item: LibraryItem): String =
     "${item.type.normalizedLibraryType()}:${item.id.trim()}"
@@ -251,4 +393,10 @@ internal val LibrarySourceMode.isRemoteTrackingSource: Boolean
 private data class StoredLibraryDisplaySettings(
     @SerialName("layout_mode") val layoutMode: String = LibraryLayoutMode.HORIZONTAL.name,
     @SerialName("sort_option") val sortOption: String = LibrarySortOption.DEFAULT.name,
+    @SerialName("saved_sort_option") val savedSortOption: String = LibrarySortOption.ADDED_DESC.name,
+    @SerialName("shelves_sort_option") val shelvesSortOption: String = LibrarySortOption.DEFAULT.name,
+    @SerialName("selected_shelf_key") val selectedShelfKey: String? = null,
+    @SerialName("view_filter_mode") val viewFilterMode: String = LibraryViewFilterMode.EXCLUSIVE.name,
+    @SerialName("show_private_vault") val showPrivateVault: Boolean = false,
+    @SerialName("show_nsfw") val showNSFW: Boolean = false,
 )

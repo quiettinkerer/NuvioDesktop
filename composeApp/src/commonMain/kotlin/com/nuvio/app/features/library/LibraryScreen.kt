@@ -147,10 +147,10 @@ fun LibraryScreen(
         selected = displaySettings.sortOption,
         sourceMode = uiState.sourceMode,
     )
-    val sortedSections = remember(uiState.sections, displaySettings.sortOption, uiState.sourceMode) {
+    val sortedSections = remember(uiState.sections, effectiveSortOption, uiState.sourceMode) {
         sortLibrarySections(
             sections = uiState.sections,
-            selected = displaySettings.sortOption,
+            selected = effectiveSortOption,
             sourceMode = uiState.sourceMode,
         )
     }
@@ -159,15 +159,25 @@ fun LibraryScreen(
         uiState.sourceMode,
         selectedLibrarySectionKey,
         selectedLibraryType,
-        displaySettings.sortOption,
+        effectiveSortOption,
     ) {
         buildLibraryVerticalProjection(
             sections = uiState.sections,
             sourceMode = uiState.sourceMode,
             selectedSectionKey = selectedLibrarySectionKey,
             selectedType = selectedLibraryType,
-            sortOption = displaySettings.sortOption,
+            sortOption = effectiveSortOption,
         )
+    }
+
+    LaunchedEffect(Unit) {
+        LibraryRepository.triggerLibraryEnrichmentAsync(force = false)
+    }
+
+    LaunchedEffect(effectiveSortOption) {
+        if (effectiveSortOption == LibrarySortOption.RELEASE_DATE_DESC || effectiveSortOption == LibrarySortOption.RELEASE_DATE_ASC) {
+            LibraryRepository.triggerLibraryEnrichmentAsync(force = false)
+        }
     }
     val retryLibraryLoad: () -> Unit = {
         NetworkStatusRepository.requestRefresh(force = true)

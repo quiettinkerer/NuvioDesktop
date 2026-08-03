@@ -163,6 +163,11 @@ private fun librarySortOptionLabel(option: LibrarySortOption): String =
         LibrarySortOption.ADDED_ASC -> stringResource(Res.string.library_sort_added_asc)
         LibrarySortOption.TITLE_ASC -> stringResource(Res.string.library_sort_title_asc)
         LibrarySortOption.TITLE_DESC -> stringResource(Res.string.library_sort_title_desc)
+        LibrarySortOption.RATING_DESC -> "Highest rated"
+        LibrarySortOption.RATING_ASC -> "Lowest rated"
+        LibrarySortOption.RELEASE_DATE_DESC -> "Latest released"
+        LibrarySortOption.RELEASE_DATE_ASC -> "Oldest released"
+        else -> option.name
     }
 
 private fun List<LibraryVerticalEntry>.findEntry(preview: MetaPreview): LibraryVerticalEntry? =

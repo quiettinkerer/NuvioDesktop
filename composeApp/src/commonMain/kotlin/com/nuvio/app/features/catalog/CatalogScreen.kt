@@ -347,7 +347,7 @@ private fun CatalogPosterTile(
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
-            val detail = item.releaseInfo?.let { formatReleaseDateForDisplay(it) }
+            val detail = item.releaseInfo?.let { formatReleaseDateForDisplay(it, item.type) }
             if (detail != null) {
                 Text(
                     text = detail,
