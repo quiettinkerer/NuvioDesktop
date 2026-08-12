@@ -467,13 +467,12 @@ const settingToastLabel = command => {
 let lastVolumeDelta = 1;
 
 const volumeToastLabel = (delta = lastVolumeDelta) => {
-  const arrow = delta >= 0 ? "▲" : "▼";
   const volumeLevel = state.volumeLevel;
   if (typeof volumeLevel === "number" && Number.isFinite(volumeLevel)) {
     const percent = Math.round(Math.max(0, Math.min(1, volumeLevel)) * 100);
-    return `${arrow} Volume: ${percent}%`;
+    return `Volume: ${percent}%`;
   }
-  return `${arrow} Volume: ${delta < 0 ? "Down" : "Up"}`;
+  return `Volume: ${delta < 0 ? "Down" : "Up"}`;
 };
 
 const syncVolumeControl = () => {
@@ -491,11 +490,10 @@ const syncVolumeControl = () => {
 };
 
 const nextVolumeToastLabel = delta => {
-  const arrow = delta >= 0 ? "▲" : "▼";
   const volumeLevel = state.volumeLevel;
   if (typeof volumeLevel === "number" && Number.isFinite(volumeLevel)) {
     const nextLevel = Math.max(0, Math.min(1, volumeLevel + (delta * 0.05)));
-    return `${arrow} Volume: ${Math.round(nextLevel * 100)}%`;
+    return `Volume: ${Math.round(nextLevel * 100)}%`;
   }
   return volumeToastLabel(delta);
 };
@@ -2283,8 +2281,7 @@ const sendKeyboardFineVolume = delta => {
   state.volumeLevel = nextLevel;
   syncVolumeControl();
   send("volumeChange", nextLevel);
-  const arrow = delta >= 0 ? "▲" : "▼";
-  showVlcOsd(`${arrow} Volume: ${Math.round(nextLevel * 100)}%`);
+  showVlcOsd(`Volume: ${Math.round(nextLevel * 100)}%`);
 };
 
 let preMuteVolumeLevel = 1.0;
@@ -2301,14 +2298,14 @@ const toggleMute = () => {
     state.volumeLevel = restoreLevel;
     syncVolumeControl();
     send("volumeChange", restoreLevel);
-    showVlcOsd(`🔊 Volume: ${Math.round(restoreLevel * 100)}%`);
+    showVlcOsd(`Volume: ${Math.round(restoreLevel * 100)}%`);
   } else {
     preMuteVolumeLevel = currentLevel;
     isMuted = true;
     state.volumeLevel = 0;
     syncVolumeControl();
     send("volumeChange", 0);
-    showVlcOsd("🔇 Muted");
+    showVlcOsd("Muted");
   }
 };
 
@@ -2318,7 +2315,15 @@ let isSpeedBoosting = false;
 const startSpeedBoost = () => {
   if (isSpeedBoosting) return;
   isSpeedBoosting = true;
-  showVlcOsd("⏩ 2.0x Speed");
+  if (vlcOsd) {
+    vlcOsd.textContent = "Speed: 2x";
+    vlcOsd.classList.add("visible", "speed-boosting");
+    vlcOsd.setAttribute("aria-hidden", "false");
+  }
+  if (vlcOsdTimer) {
+    window.clearTimeout(vlcOsdTimer);
+    vlcOsdTimer = null;
+  }
   send("holdToSpeedStart", 0);
 };
 
@@ -2330,7 +2335,15 @@ const stopSpeedBoost = () => {
   if (!isSpeedBoosting) return;
   isSpeedBoosting = false;
   send("holdToSpeedEnd", 0);
-  showVlcOsd(`Speed: ${state.playbackSpeedLabel || "1x"}`);
+  if (vlcOsd) {
+    vlcOsd.classList.remove("speed-boosting");
+    vlcOsd.textContent = `Speed: ${state.playbackSpeedLabel || "1x"}`;
+    if (vlcOsdTimer) window.clearTimeout(vlcOsdTimer);
+    vlcOsdTimer = window.setTimeout(() => {
+      vlcOsd.classList.remove("visible");
+      vlcOsd.setAttribute("aria-hidden", "true");
+    }, 1000);
+  }
 };
 
 const showFineSeekOsd = isForward => {
@@ -2911,7 +2924,7 @@ window.addEventListener("mouseup", () => {
 });
 
 document.addEventListener("keyup", event => {
-  if (event.code === "Enter" || event.code === "Space" || event.code === "KeyK") {
+  if (event.code === "Enter") {
     stopSpeedBoost();
   }
 });
@@ -2944,7 +2957,7 @@ document.addEventListener("keydown", event => {
     return;
   }
 
-  if ((event.code === "Enter" || event.code === "Space" || event.code === "KeyK") && event.repeat) {
+  if (event.code === "Enter" && event.repeat) {
     event.preventDefault();
     startSpeedBoost();
     return;
