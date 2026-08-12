@@ -713,6 +713,14 @@ private fun PlayerScreenRuntime.handlePlayerControlsAction(action: PlayerControl
             prepareDoubleTapSeekForNativeFallback(PlayerSeekDirection.Forward)
             return false
         }
+        PlayerControlsAction.HoldToSpeedStart -> {
+            activateHoldToSpeed()
+            return true
+        }
+        PlayerControlsAction.HoldToSpeedEnd -> {
+            deactivateHoldToSpeed()
+            return true
+        }
     }
     return true
 }

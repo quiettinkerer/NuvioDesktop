@@ -2164,14 +2164,20 @@ const shortcutCommandForEvent = event => {
       return "keyboardToggle";
     case "ArrowLeft":
     case "KeyJ":
+    case "KeyA":
       return isShift ? "keyboardFineSeekBack" : "keyboardSeekBack";
     case "ArrowRight":
     case "KeyL":
+    case "KeyD":
       return isShift ? "keyboardFineSeekForward" : "keyboardSeekForward";
     case "ArrowUp":
+    case "KeyW":
       return isShift ? "keyboardFineVolumeUp" : "keyboardVolumeUp";
     case "ArrowDown":
+    case "KeyS":
       return isShift ? "keyboardFineVolumeDown" : "keyboardVolumeDown";
+    case "KeyM":
+      return "keyboardToggleMute";
     default:
       return "";
   }
@@ -2279,6 +2285,52 @@ const sendKeyboardFineVolume = delta => {
   send("volumeChange", nextLevel);
   const arrow = delta >= 0 ? "▲" : "▼";
   showVlcOsd(`${arrow} Volume: ${Math.round(nextLevel * 100)}%`);
+};
+
+let preMuteVolumeLevel = 1.0;
+let isMuted = false;
+
+const toggleMute = () => {
+  const currentLevel = typeof state.volumeLevel === "number" && Number.isFinite(state.volumeLevel)
+    ? state.volumeLevel
+    : 1;
+
+  if (isMuted || currentLevel === 0) {
+    const restoreLevel = preMuteVolumeLevel > 0 ? preMuteVolumeLevel : 1.0;
+    isMuted = false;
+    state.volumeLevel = restoreLevel;
+    syncVolumeControl();
+    send("volumeChange", restoreLevel);
+    showVlcOsd(`🔊 Volume: ${Math.round(restoreLevel * 100)}%`);
+  } else {
+    preMuteVolumeLevel = currentLevel;
+    isMuted = true;
+    state.volumeLevel = 0;
+    syncVolumeControl();
+    send("volumeChange", 0);
+    showVlcOsd("🔇 Muted");
+  }
+};
+
+let speedBoostHoldTimer = null;
+let isSpeedBoosting = false;
+
+const startSpeedBoost = () => {
+  if (isSpeedBoosting) return;
+  isSpeedBoosting = true;
+  showVlcOsd("⏩ 2.0x Speed");
+  send("holdToSpeedStart", 0);
+};
+
+const stopSpeedBoost = () => {
+  if (speedBoostHoldTimer) {
+    window.clearTimeout(speedBoostHoldTimer);
+    speedBoostHoldTimer = null;
+  }
+  if (!isSpeedBoosting) return;
+  isSpeedBoosting = false;
+  send("holdToSpeedEnd", 0);
+  showVlcOsd(`Speed: ${state.playbackSpeedLabel || "1x"}`);
 };
 
 const showFineSeekOsd = isForward => {
@@ -2839,6 +2891,31 @@ root.addEventListener("wheel", event => {
   sendKeyboardVolume(delta);
 }, { passive: false });
 
+root.addEventListener("mousedown", event => {
+  if (playbackErrorText() || activeModal) return;
+  if (event.button !== 0) return;
+  if (event.target.closest("button, input, select, textarea, .modal-backdrop, .modal-dialog, .controls-bar, .header-actions, .seeking-osd, .vlc-osd")) return;
+
+  if (speedBoostHoldTimer) window.clearTimeout(speedBoostHoldTimer);
+  speedBoostHoldTimer = window.setTimeout(() => {
+    startSpeedBoost();
+  }, 250);
+});
+
+window.addEventListener("mouseup", () => {
+  if (speedBoostHoldTimer) {
+    window.clearTimeout(speedBoostHoldTimer);
+    speedBoostHoldTimer = null;
+  }
+  stopSpeedBoost();
+});
+
+document.addEventListener("keyup", event => {
+  if (event.code === "Enter" || event.code === "Space" || event.code === "KeyK") {
+    stopSpeedBoost();
+  }
+});
+
 document.addEventListener("keydown", event => {
   if (event.key === "Escape" && activeModal) {
     event.preventDefault();
@@ -2866,6 +2943,13 @@ document.addEventListener("keydown", event => {
   if (activeModal || isTextEntryTarget(event.target)) {
     return;
   }
+
+  if ((event.code === "Enter" || event.code === "Space" || event.code === "KeyK") && event.repeat) {
+    event.preventDefault();
+    startSpeedBoost();
+    return;
+  }
+
   const command = shortcutCommandForEvent(event);
   if (!command) {
     return;
@@ -2873,6 +2957,10 @@ document.addEventListener("keydown", event => {
   event.preventDefault();
   focusShortcutRoot();
   noteChromeActivity();
+  if (command === "keyboardToggleMute") {
+    toggleMute();
+    return;
+  }
   if (command === "keyboardVolumeUp") {
     sendKeyboardVolume(1);
     return;

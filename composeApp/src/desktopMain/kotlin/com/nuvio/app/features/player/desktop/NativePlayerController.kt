@@ -714,6 +714,8 @@ private fun String.toPlayerControlsAction(): PlayerControlsAction? =
         "external" -> PlayerControlsAction.OpenExternalPlayer
         "submitIntro" -> PlayerControlsAction.SubmitIntro
         "videoSettings" -> PlayerControlsAction.VideoSettings
+        "holdToSpeedStart" -> PlayerControlsAction.HoldToSpeedStart
+        "holdToSpeedEnd" -> PlayerControlsAction.HoldToSpeedEnd
         else -> null
     }
 

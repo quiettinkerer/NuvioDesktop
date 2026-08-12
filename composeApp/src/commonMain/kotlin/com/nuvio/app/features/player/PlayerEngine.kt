@@ -53,6 +53,8 @@ enum class PlayerControlsAction {
     VideoSettings,
     DoubleTapSeekBack,
     DoubleTapSeekForward,
+    HoldToSpeedStart,
+    HoldToSpeedEnd,
 }
 
 data class PlayerControlsState(
