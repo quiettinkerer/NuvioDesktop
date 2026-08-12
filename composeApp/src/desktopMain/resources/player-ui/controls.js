@@ -467,12 +467,13 @@ const settingToastLabel = command => {
 let lastVolumeDelta = 1;
 
 const volumeToastLabel = (delta = lastVolumeDelta) => {
+  const arrow = delta >= 0 ? "▲" : "▼";
   const volumeLevel = state.volumeLevel;
   if (typeof volumeLevel === "number" && Number.isFinite(volumeLevel)) {
     const percent = Math.round(Math.max(0, Math.min(1, volumeLevel)) * 100);
-    return `Volume: ${percent}%`;
+    return `${arrow} Volume: ${percent}%`;
   }
-  return `Volume: ${delta < 0 ? "Down" : "Up"}`;
+  return `${arrow} Volume: ${delta < 0 ? "Down" : "Up"}`;
 };
 
 const syncVolumeControl = () => {
@@ -490,10 +491,11 @@ const syncVolumeControl = () => {
 };
 
 const nextVolumeToastLabel = delta => {
+  const arrow = delta >= 0 ? "▲" : "▼";
   const volumeLevel = state.volumeLevel;
   if (typeof volumeLevel === "number" && Number.isFinite(volumeLevel)) {
     const nextLevel = Math.max(0, Math.min(1, volumeLevel + (delta * 0.05)));
-    return `Volume: ${Math.round(nextLevel * 100)}%`;
+    return `${arrow} Volume: ${Math.round(nextLevel * 100)}%`;
   }
   return volumeToastLabel(delta);
 };
@@ -2281,7 +2283,8 @@ const sendKeyboardFineVolume = delta => {
   state.volumeLevel = nextLevel;
   syncVolumeControl();
   send("volumeChange", nextLevel);
-  showVlcOsd(`Volume: ${Math.round(nextLevel * 100)}%`);
+  const arrow = delta >= 0 ? "▲" : "▼";
+  showVlcOsd(`${arrow} Volume: ${Math.round(nextLevel * 100)}%`);
 };
 
 let preMuteVolumeLevel = 1.0;
@@ -2298,7 +2301,7 @@ const toggleMute = () => {
     state.volumeLevel = restoreLevel;
     syncVolumeControl();
     send("volumeChange", restoreLevel);
-    showVlcOsd(`Volume: ${Math.round(restoreLevel * 100)}%`);
+    showVlcOsd(`▲ Volume: ${Math.round(restoreLevel * 100)}%`);
   } else {
     preMuteVolumeLevel = currentLevel;
     isMuted = true;
