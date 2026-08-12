@@ -305,6 +305,14 @@ button:disabled {
   opacity: 0.55;
 }
 
+.vlc-osd svg {
+  width: 28px;
+  height: 28px;
+  margin-right: 8px;
+  fill: currentColor;
+  filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.9));
+}
+
 /* VLC-Style Seeking OSD (Pure Text & Icons Overlay, NO Background Pill Modal) */
 .seek-osd {
   position: absolute;

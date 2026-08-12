@@ -502,7 +502,7 @@ const nextVolumeToastLabel = delta => {
 
 const showVlcOsd = text => {
   if (!vlcOsd || !text) return;
-  vlcOsd.textContent = text;
+  vlcOsd.innerHTML = text;
   vlcOsd.classList.add("visible");
   vlcOsd.setAttribute("aria-hidden", "false");
   if (vlcOsdTimer) {
@@ -2308,7 +2308,7 @@ const toggleMute = () => {
     state.volumeLevel = 0;
     syncVolumeControl();
     send("volumeChange", 0);
-    showVlcOsd("Muted");
+    showVlcOsd('<svg><use href="#icon-volume-muted"></use></svg> Muted');
   }
 };
 
