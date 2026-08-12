@@ -271,8 +271,8 @@ button:disabled {
 /* VLC Top-Right OSD (Pure VLC Text Overlay) */
 .vlc-osd {
   position: absolute;
-  top: clamp(44px, calc(var(--vp) + 48px), 88px);
-  right: calc(var(--hp) + 12px);
+  top: calc(var(--vp) + var(--header-button) + 24px);
+  right: var(--hp);
   z-index: 50;
   padding: 0;
   border: none;
@@ -3026,7 +3026,7 @@ button.action:focus-visible {
 
 @media (max-width: 760px) {
   .vlc-osd {
-    top: calc(var(--vp) + 38px);
+    top: calc(var(--vp) + var(--header-button) + 18px);
     right: var(--hp);
     font-size: 15px;
   }
