@@ -271,14 +271,14 @@ button:disabled {
 /* VLC Top-Right OSD (Pure VLC Text Overlay) */
 .vlc-osd {
   position: absolute;
-  top: calc(115px + env(safe-area-inset-top));
-  right: calc(var(--hp) + 36px);
+  top: clamp(44px, calc(var(--vp) + 48px), 88px);
+  right: calc(var(--hp) + 12px);
   z-index: 50;
   padding: 0;
   border: none;
   background: transparent;
   color: #ffffff;
-  font-size: 32px;
+  font-size: clamp(16px, 2.2vw, 28px);
   font-weight: 700;
   letter-spacing: 0.6px;
   line-height: 1.2;
@@ -306,9 +306,9 @@ button:disabled {
 }
 
 .vlc-osd svg {
-  width: 28px;
-  height: 28px;
-  margin-right: 8px;
+  width: clamp(16px, 2.2vw, 26px);
+  height: clamp(16px, 2.2vw, 26px);
+  margin-right: 6px;
   fill: currentColor;
   filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.9));
 }
@@ -3025,6 +3025,18 @@ button.action:focus-visible {
 }
 
 @media (max-width: 760px) {
+  .vlc-osd {
+    top: calc(var(--vp) + 38px);
+    right: var(--hp);
+    font-size: 15px;
+  }
+
+  .vlc-osd svg {
+    width: 15px;
+    height: 15px;
+    margin-right: 4px;
+  }
+
   .header {
     left: var(--hp);
     right: var(--hp);
