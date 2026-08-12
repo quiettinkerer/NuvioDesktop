@@ -22,6 +22,12 @@
       <path d="M12 5V2l4.5 4.5L12 11V8c-3.31 0-6 2.69-6 6 0 1.45.52 2.78 1.38 3.82l-1.42 1.42A7.95 7.95 0 0 1 4 14c0-4.42 3.58-9 8-9Z"/>
       <path d="M8.7 17.8H7.55v-4.35l-1.25.38v-.95l2.25-.72h.15v5.64ZM15.25 16.47c0 .88-.63 1.42-1.62 1.42h-1.2c-.99 0-1.62-.54-1.62-1.42v-2.85c0-.88.63-1.42 1.62-1.42h1.2c.99 0 1.62.54 1.62 1.42v2.85Zm-1.13-2.64c0-.36-.2-.55-.58-.55h-1.02c-.38 0-.58.19-.58.55v2.43c0 .36.2.55.58.55h1.02c.38 0 .58-.19.58-.55v-2.43Z"/>
     </symbol>
+    <symbol id="icon-fast-forward" viewBox="0 0 24 24">
+      <path d="M4 18l8.5-6L4 6v12zm9 0l8.5-6L13 6v12z"/>
+    </symbol>
+    <symbol id="icon-fast-rewind" viewBox="0 0 24 24">
+      <path d="M11 18V6l-8.5 6 8.5 6zm9 0V6l-8.5 6 8.5 6z"/>
+    </symbol>
     <symbol id="icon-skip-next" viewBox="0 0 24 24">
       <path d="M5 4.9c0-.78.86-1.26 1.53-.84L15 9.36V5a1 1 0 1 1 2 0v14a1 1 0 1 1-2 0v-4.36l-8.47 5.3A1 1 0 0 1 5 19.1V4.9Z"/>
     </symbol>
@@ -85,6 +91,8 @@
   </svg>
 
   <div class="player" id="playerRoot" tabindex="-1">
+    <div id="vlcOsd" class="vlc-osd" aria-live="polite" aria-hidden="true"></div>
+    <div id="seekOsd" class="seek-osd" aria-live="polite" aria-hidden="true"></div>
     <div class="top-gradient"></div>
     <div class="bottom-gradient"></div>
     <section class="opening-overlay" id="openingOverlay" aria-label="Opening player" aria-hidden="true">

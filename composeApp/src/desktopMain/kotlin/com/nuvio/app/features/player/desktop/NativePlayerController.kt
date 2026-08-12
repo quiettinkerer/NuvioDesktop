@@ -327,10 +327,14 @@ internal class NativePlayerController(
             }
             PlayerControlsAction.SeekBack,
             PlayerControlsAction.KeyboardSeekBack -> fallbackSeekBy(-10_000L)
+            PlayerControlsAction.KeyboardFineSeekBack -> fallbackSeekBy(-1_000L)
             PlayerControlsAction.SeekForward,
             PlayerControlsAction.KeyboardSeekForward -> fallbackSeekBy(10_000L)
+            PlayerControlsAction.KeyboardFineSeekForward -> fallbackSeekBy(1_000L)
             PlayerControlsAction.KeyboardVolumeDown -> adjustFallbackVolume(-5f)
             PlayerControlsAction.KeyboardVolumeUp -> adjustFallbackVolume(5f)
+            PlayerControlsAction.KeyboardFineVolumeDown -> adjustFallbackVolume(-1f)
+            PlayerControlsAction.KeyboardFineVolumeUp -> adjustFallbackVolume(1f)
             PlayerControlsAction.Speed -> cycleFallbackSpeed()
             else -> Unit
         }
@@ -693,10 +697,14 @@ private fun String.toPlayerControlsAction(): PlayerControlsAction? =
         "keyboardToggle" -> PlayerControlsAction.KeyboardTogglePlayback
         "seekBack" -> PlayerControlsAction.SeekBack
         "keyboardSeekBack" -> PlayerControlsAction.KeyboardSeekBack
+        "keyboardFineSeekBack" -> PlayerControlsAction.KeyboardFineSeekBack
         "seekForward" -> PlayerControlsAction.SeekForward
         "keyboardSeekForward" -> PlayerControlsAction.KeyboardSeekForward
+        "keyboardFineSeekForward" -> PlayerControlsAction.KeyboardFineSeekForward
         "keyboardVolumeDown" -> PlayerControlsAction.KeyboardVolumeDown
+        "keyboardFineVolumeDown" -> PlayerControlsAction.KeyboardFineVolumeDown
         "keyboardVolumeUp" -> PlayerControlsAction.KeyboardVolumeUp
+        "keyboardFineVolumeUp" -> PlayerControlsAction.KeyboardFineVolumeUp
         "resize" -> PlayerControlsAction.ResizeMode
         "speed" -> PlayerControlsAction.Speed
         "subtitles" -> PlayerControlsAction.Subtitles

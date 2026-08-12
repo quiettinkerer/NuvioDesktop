@@ -647,23 +647,33 @@ private fun PlayerScreenRuntime.handlePlayerControlsAction(action: PlayerControl
             return false
         }
         PlayerControlsAction.SeekBack -> {
-            prepareSeekByForNativeFallback(-10_000L)
-            return false
+            seekBy(-10_000L)
+            return true
         }
         PlayerControlsAction.KeyboardSeekBack -> {
-            prepareSeekByForNativeFallback(-10_000L, revealControls = false)
-            return false
+            seekBy(-10_000L)
+            return true
+        }
+        PlayerControlsAction.KeyboardFineSeekBack -> {
+            seekBy(-1_000L)
+            return true
         }
         PlayerControlsAction.SeekForward -> {
-            prepareSeekByForNativeFallback(10_000L)
-            return false
+            seekBy(10_000L)
+            return true
         }
         PlayerControlsAction.KeyboardSeekForward -> {
-            prepareSeekByForNativeFallback(10_000L, revealControls = false)
-            return false
+            seekBy(10_000L)
+            return true
+        }
+        PlayerControlsAction.KeyboardFineSeekForward -> {
+            seekBy(1_000L)
+            return true
         }
         PlayerControlsAction.KeyboardVolumeDown,
-        PlayerControlsAction.KeyboardVolumeUp -> {
+        PlayerControlsAction.KeyboardVolumeUp,
+        PlayerControlsAction.KeyboardFineVolumeDown,
+        PlayerControlsAction.KeyboardFineVolumeUp -> {
             return false
         }
         PlayerControlsAction.ResizeMode -> cycleResizeMode()

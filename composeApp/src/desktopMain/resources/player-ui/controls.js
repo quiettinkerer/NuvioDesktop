@@ -38,6 +38,17 @@ const episodesLabel = document.getElementById("episodesLabel");
 const submitIntroButton = document.getElementById("submitIntroButton");
 const videoSettingsButton = document.getElementById("videoSettingsButton");
 const backButton = document.getElementById("backButton");
+const vlcOsd = document.getElementById("vlcOsd");
+let vlcOsdTimer = null;
+const seekOsd = document.getElementById("seekOsd");
+let seekOsdTimer = null;
+let fineSeekAccumulatedMs = 0;
+let fineSeekDirection = null;
+let fineSeekTimer = null;
+let scrubStartMs = 0;
+let accumulatedSeekSeconds = 0;
+let accumulatedSeekDirection = null;
+let accumulatedSeekTimer = null;
 const openingOverlay = document.getElementById("openingOverlay");
 const openingArtwork = document.getElementById("openingArtwork");
 const openingBackButton = document.getElementById("openingBackButton");
@@ -453,12 +464,16 @@ const settingToastLabel = command => {
   return "";
 };
 
-const volumeToastLabel = (fallbackDelta = 0) => {
+let lastVolumeDelta = 1;
+
+const volumeToastLabel = (delta = lastVolumeDelta) => {
+  const arrow = delta >= 0 ? "▲" : "▼";
   const volumeLevel = state.volumeLevel;
   if (typeof volumeLevel === "number" && Number.isFinite(volumeLevel)) {
-    return `Volume ${Math.round(Math.max(0, Math.min(1, volumeLevel)) * 100)}%`;
+    const percent = Math.round(Math.max(0, Math.min(1, volumeLevel)) * 100);
+    return `${arrow} Volume: ${percent}%`;
   }
-  return fallbackDelta < 0 ? "Volume down" : "Volume up";
+  return `${arrow} Volume: ${delta < 0 ? "Down" : "Up"}`;
 };
 
 const syncVolumeControl = () => {
@@ -476,37 +491,108 @@ const syncVolumeControl = () => {
 };
 
 const nextVolumeToastLabel = delta => {
+  const arrow = delta >= 0 ? "▲" : "▼";
   const volumeLevel = state.volumeLevel;
   if (typeof volumeLevel === "number" && Number.isFinite(volumeLevel)) {
     const nextLevel = Math.max(0, Math.min(1, volumeLevel + (delta * 0.05)));
-    return `Volume ${Math.round(nextLevel * 100)}%`;
+    return `${arrow} Volume: ${Math.round(nextLevel * 100)}%`;
   }
   return volumeToastLabel(delta);
 };
 
-const seekToastLabel = command => {
-  if (command === "seekBack" || command === "keyboardSeekBack") return "-10s";
-  if (command === "seekForward" || command === "keyboardSeekForward") return "+10s";
-  return "";
+const showVlcOsd = text => {
+  if (!vlcOsd || !text) return;
+  vlcOsd.textContent = text;
+  vlcOsd.classList.add("visible");
+  vlcOsd.setAttribute("aria-hidden", "false");
+  if (vlcOsdTimer) {
+    window.clearTimeout(vlcOsdTimer);
+  }
+  vlcOsdTimer = window.setTimeout(() => {
+    vlcOsd.classList.remove("visible");
+    vlcOsd.setAttribute("aria-hidden", "true");
+  }, 1600);
+};
+
+const renderSeekOsd = ({ icon, text, delta, isPositive, durationMs = 800 }) => {
+  if (!seekOsd) return;
+  let html = "";
+  if (icon) {
+    html += `<div class="seek-osd-badge"><svg><use href="${icon}"></use></svg></div>`;
+  }
+  if (text) {
+    html += `<span class="seek-osd-time">${text}</span>`;
+  }
+  if (delta) {
+    const colorClass = isPositive ? "positive" : "negative";
+    html += `<span class="seek-osd-delta ${colorClass}">${delta}</span>`;
+  }
+  seekOsd.innerHTML = html;
+  seekOsd.classList.add("visible");
+  seekOsd.setAttribute("aria-hidden", "false");
+
+  if (seekOsdTimer) {
+    window.clearTimeout(seekOsdTimer);
+  }
+  seekOsdTimer = window.setTimeout(() => {
+    seekOsd.classList.remove("visible");
+    seekOsd.setAttribute("aria-hidden", "true");
+  }, durationMs);
+};
+
+const showSeekOsd = command => {
+  const isForward = command === "seekForward" || command === "keyboardSeekForward";
+  const isBackward = command === "seekBack" || command === "keyboardSeekBack";
+  if (!isForward && !isBackward) return;
+
+  const direction = isForward ? "forward" : "backward";
+  if (accumulatedSeekDirection === direction) {
+    accumulatedSeekSeconds += 10;
+  } else {
+    accumulatedSeekDirection = direction;
+    accumulatedSeekSeconds = 10;
+  }
+
+  const icon = isForward ? "#icon-fast-forward" : "#icon-fast-rewind";
+  const sign = isForward ? "+" : "-";
+
+  renderSeekOsd({
+    icon,
+    delta: `${sign}${accumulatedSeekSeconds}s`,
+    isPositive: isForward,
+    durationMs: 800
+  });
+
+  if (accumulatedSeekTimer) {
+    window.clearTimeout(accumulatedSeekTimer);
+  }
+  accumulatedSeekTimer = window.setTimeout(() => {
+    accumulatedSeekSeconds = 0;
+    accumulatedSeekDirection = null;
+  }, 800);
 };
 
 const showCommandToast = command => {
-  queueSettingToast(command);
-  const seekLabel = seekToastLabel(command);
-  if (seekLabel) {
-    showPlayerToast(seekLabel);
+  if (command === "seekBack" || command === "keyboardSeekBack" || command === "seekForward" || command === "keyboardSeekForward") {
+    showSeekOsd(command);
+  } else {
+    queueSettingToast(command);
   }
 };
 
 const queueSettingToast = command => {
-  if (command !== "resize" && command !== "speed") return;
+  if (command === "resize") {
+    showVlcOsd(`Aspect Ratio: ${state.resizeModeLabel || "Fit"}`);
+    return;
+  }
+  if (command !== "speed") return;
   pendingSettingToastCommand = command;
   pendingSettingToastToken += 1;
   const token = pendingSettingToastToken;
   window.setTimeout(() => {
     if (pendingSettingToastCommand !== command || pendingSettingToastToken !== token) return;
-    showPlayerToast(settingToastLabel(command));
-  }, 900);
+    showVlcOsd(`Speed: ${settingToastLabel(command)}`);
+  }, 300);
   window.setTimeout(() => {
     if (pendingSettingToastCommand !== command || pendingSettingToastToken !== token) return;
     pendingSettingToastCommand = "";
@@ -2071,20 +2157,21 @@ const isTextEntryTarget = target => {
 
 const shortcutCommandForEvent = event => {
   if (event.metaKey || event.ctrlKey || event.altKey) return "";
+  const isShift = event.shiftKey;
   switch (event.code) {
     case "Space":
     case "KeyK":
       return "keyboardToggle";
     case "ArrowLeft":
     case "KeyJ":
-      return "keyboardSeekBack";
+      return isShift ? "keyboardFineSeekBack" : "keyboardSeekBack";
     case "ArrowRight":
     case "KeyL":
-      return "keyboardSeekForward";
+      return isShift ? "keyboardFineSeekForward" : "keyboardSeekForward";
     case "ArrowUp":
-      return "keyboardVolumeUp";
+      return isShift ? "keyboardFineVolumeUp" : "keyboardVolumeUp";
     case "ArrowDown":
-      return "keyboardVolumeDown";
+      return isShift ? "keyboardFineVolumeDown" : "keyboardVolumeDown";
     default:
       return "";
   }
@@ -2175,9 +2262,66 @@ const keepChromeVisibleFromKeyboard = () => {
 };
 
 const sendKeyboardVolume = delta => {
+  lastVolumeDelta = delta;
   pendingVolumeToast = true;
-  showPlayerToast(nextVolumeToastLabel(delta));
+  showVlcOsd(nextVolumeToastLabel(delta));
   send(delta < 0 ? "keyboardVolumeDown" : "keyboardVolumeUp", 0);
+};
+
+const sendKeyboardFineVolume = delta => {
+  lastVolumeDelta = delta;
+  const currentLevel = typeof state.volumeLevel === "number" && Number.isFinite(state.volumeLevel)
+    ? state.volumeLevel
+    : 1;
+  const nextLevel = Math.max(0, Math.min(1, currentLevel + (delta * 0.01)));
+  state.volumeLevel = nextLevel;
+  syncVolumeControl();
+  send("volumeChange", nextLevel);
+  const arrow = delta >= 0 ? "▲" : "▼";
+  showVlcOsd(`${arrow} Volume: ${Math.round(nextLevel * 100)}%`);
+};
+
+const showFineSeekOsd = isForward => {
+  const direction = isForward ? "forward" : "backward";
+  const stepMs = isForward ? 1000 : -1000;
+
+  if (fineSeekDirection === direction) {
+    fineSeekAccumulatedMs += stepMs;
+  } else {
+    fineSeekDirection = direction;
+    fineSeekAccumulatedMs = stepMs;
+  }
+
+  const currentPosMs = Math.max(0, Number(state.positionMs) || 0);
+  const durationMs = Math.max(0, Number(state.durationMs) || 0);
+  const targetPosMs = Math.max(0, durationMs > 0 ? Math.min(durationMs, currentPosMs + stepMs) : currentPosMs + stepMs);
+
+  state.positionMs = targetPosMs;
+  setProgress(targetPosMs, durationMs);
+
+  const deltaSec = Math.round(fineSeekAccumulatedMs / 1000);
+  const timeStr = formatTime(targetPosMs);
+  const icon = isForward ? "#icon-fast-forward" : "#icon-fast-rewind";
+  const sign = isForward ? "+" : "";
+
+  renderSeekOsd({
+    icon,
+    text: timeStr,
+    delta: `${sign}${deltaSec}s`,
+    isPositive: isForward,
+    durationMs: 1200
+  });
+
+  send("scrubFinish", targetPosMs);
+  send(isForward ? "keyboardFineSeekForward" : "keyboardFineSeekBack", 0);
+
+  if (fineSeekTimer) {
+    window.clearTimeout(fineSeekTimer);
+  }
+  fineSeekTimer = window.setTimeout(() => {
+    fineSeekAccumulatedMs = 0;
+    fineSeekDirection = null;
+  }, 800);
 };
 
 const setChromeVisibleFromKeyboard = (visible, { focusAction = false } = {}) => {
@@ -2533,10 +2677,28 @@ nextEpisodeCard.addEventListener("click", event => {
 
 seek.addEventListener("input", () => {
   noteChromeActivity();
-  isScrubbing = true;
+  if (!isScrubbing) {
+    isScrubbing = true;
+    scrubStartMs = Math.max(0, Number(state.positionMs) || 0);
+  }
   scrubPositionMs = rangePositionMs();
   setProgress(scrubPositionMs, state.durationMs);
   send("scrubChange", scrubPositionMs);
+
+  const deltaMs = scrubPositionMs - scrubStartMs;
+  const deltaSec = Math.round(deltaMs / 1000);
+  const timeStr = formatTime(scrubPositionMs);
+  const isForward = deltaSec >= 0;
+  const icon = isForward ? "#icon-fast-forward" : "#icon-fast-rewind";
+  const sign = isForward ? "+" : "";
+
+  renderSeekOsd({
+    icon,
+    text: timeStr,
+    delta: `${sign}${deltaSec}s`,
+    isPositive: isForward,
+    durationMs: 1200
+  });
 });
 
 seek.addEventListener("change", () => {
@@ -2546,6 +2708,15 @@ seek.addEventListener("change", () => {
   send("scrubFinish", scrubPositionMs);
   state.positionMs = scrubPositionMs;
   render();
+
+  if (seekOsdTimer) {
+    window.clearTimeout(seekOsdTimer);
+  }
+  seekOsdTimer = window.setTimeout(() => {
+    seekOsd.classList.remove("visible");
+    seekOsd.setAttribute("aria-hidden", "true");
+    scrubStartMs = 0;
+  }, 600);
 });
 
 volumeSlider.addEventListener("input", () => {
@@ -2616,12 +2787,12 @@ window.playerControls = nextState => {
     resetSubtitleSelectionState();
   }
   render();
-  if (pendingSettingToastCommand === "resize" && (state.resizeModeLabel || "") !== previousResizeLabel) {
+  if (pendingSettingToastCommand === "resize" || ((state.resizeModeLabel || "") !== previousResizeLabel && previousResizeLabel !== "")) {
     pendingSettingToastCommand = "";
-    showPlayerToast(settingToastLabel("resize"));
-  } else if (pendingSettingToastCommand === "speed" && (state.playbackSpeedLabel || "") !== previousSpeedLabel) {
+    showVlcOsd(`Aspect Ratio: ${state.resizeModeLabel || "Fit"}`);
+  } else if (pendingSettingToastCommand === "speed" || ((state.playbackSpeedLabel || "") !== previousSpeedLabel && previousSpeedLabel !== "")) {
     pendingSettingToastCommand = "";
-    showPlayerToast(settingToastLabel("speed"));
+    showVlcOsd(`Speed: ${state.playbackSpeedLabel || "1x"}`);
   }
   const nextVolumeLevel = typeof state.volumeLevel === "number" ? state.volumeLevel : NaN;
   if (
@@ -2630,7 +2801,7 @@ window.playerControls = nextState => {
     (!Number.isFinite(previousVolumeLevel) || Math.abs(nextVolumeLevel - previousVolumeLevel) > 0.001)
   ) {
     pendingVolumeToast = false;
-    showPlayerToast(volumeToastLabel());
+    showVlcOsd(volumeToastLabel());
   }
 };
 
@@ -2650,6 +2821,23 @@ root.addEventListener("dblclick", event => {
   window.clearTimeout(tapTimer);
   togglePlayerFullscreen();
 });
+
+root.addEventListener("wheel", event => {
+  if (playbackErrorText() || activeModal) return;
+  if (event.shiftKey) {
+    if (event.target.closest(".modal-backdrop, .modal-dialog")) return;
+    event.preventDefault();
+    noteChromeActivity();
+    const isForward = event.deltaY !== 0 ? event.deltaY < 0 : event.deltaX > 0;
+    showFineSeekOsd(isForward);
+    return;
+  }
+  if (event.target.closest(".volume-control, .controls-bar, .modal-backdrop, .modal-dialog, input, button")) return;
+  event.preventDefault();
+  noteChromeActivity();
+  const delta = event.deltaY < 0 ? 1 : -1;
+  sendKeyboardVolume(delta);
+}, { passive: false });
 
 document.addEventListener("keydown", event => {
   if (event.key === "Escape" && activeModal) {
@@ -2691,6 +2879,22 @@ document.addEventListener("keydown", event => {
   }
   if (command === "keyboardVolumeDown") {
     sendKeyboardVolume(-1);
+    return;
+  }
+  if (command === "keyboardFineVolumeUp") {
+    sendKeyboardFineVolume(1);
+    return;
+  }
+  if (command === "keyboardFineVolumeDown") {
+    sendKeyboardFineVolume(-1);
+    return;
+  }
+  if (command === "keyboardFineSeekForward") {
+    showFineSeekOsd(true);
+    return;
+  }
+  if (command === "keyboardFineSeekBack") {
+    showFineSeekOsd(false);
     return;
   }
   showCommandToast(command);
