@@ -18,6 +18,7 @@ import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -31,6 +32,7 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
@@ -57,6 +59,8 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.key.Key
@@ -80,6 +84,8 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.hazeEffect
 import com.nuvio.app.core.ui.NuvioAsyncImage as AsyncImage
 import com.nuvio.app.core.ui.NuvioTokens
 import com.nuvio.app.core.ui.nuvio
@@ -100,6 +106,10 @@ fun ProfileSwitcherTab(
     onAddProfileRequested: () -> Unit,
     triggerContent: (@Composable (selected: Boolean) -> Unit)? = null,
     openPopupOnClick: Boolean = false,
+    onPopupStateChanged: ((Boolean) -> Unit)? = null,
+    avatarSize: Int = 28,
+    hazeState: HazeState? = null,
+    popupAlignment: Alignment = Alignment.BottomCenter,
     modifier: Modifier = Modifier,
 ) {
     val tokens = MaterialTheme.nuvio
@@ -173,6 +183,7 @@ fun ProfileSwitcherTab(
     val popupTranslateY = remember { Animatable(40f) }
 
     LaunchedEffect(showPopup) {
+        onPopupStateChanged?.invoke(showPopup)
         if (showPopup) {
             popupVisible = true
             launch { popupAlpha.animateTo(1f, tween(220, easing = FastOutSlowInEasing)) }
@@ -256,15 +267,21 @@ fun ProfileSwitcherTab(
                 profile = activeProfile,
                 avatars = avatars,
                 selected = selected,
-                size = 28,
+                size = avatarSize,
             )
         }
 
         // Floating profile popup (stays composed during exit animation)
         if (popupVisible && profiles.isNotEmpty()) {
+            val popupOffset = if (popupAlignment == Alignment.TopCenter) {
+                IntOffset(0, with(density) { 52.dp.roundToPx() })
+            } else {
+                IntOffset(0, with(density) { -NuvioTokens.Space.s64.roundToPx() })
+            }
+            val hasHaze = hazeState != null
             Popup(
-                alignment = Alignment.BottomCenter,
-                offset = IntOffset(0, with(density) { -NuvioTokens.Space.s64.roundToPx() }),
+                alignment = popupAlignment,
+                offset = popupOffset,
                 properties = PopupProperties(focusable = true),
                 onDismissRequest = { showPopup = false },
             ) {
@@ -277,17 +294,32 @@ fun ProfileSwitcherTab(
                             scaleY = popupScale.value
                             translationY = popupTranslateY.value
                         }
-                        .shadow(tokens.elevation.overlay, tokens.shapes.sheet)
-                        .background(
-                            tokens.colors.surfaceSheet,
-                            tokens.shapes.sheet,
+                        .then(
+                            if (hasHaze) {
+                                Modifier
+                                    .clip(tokens.shapes.sheet)
+                                    .hazeEffect(state = hazeState) {
+                                        blurRadius = 14.dp
+                                    }
+                                    .background(
+                                        color = Color(0xFF1C1C1E).copy(alpha = 0.22f),
+                                        shape = tokens.shapes.sheet,
+                                    )
+                            } else {
+                                Modifier
+                                    .shadow(tokens.elevation.overlay, tokens.shapes.sheet)
+                                    .background(
+                                        tokens.colors.surfaceSheet,
+                                        tokens.shapes.sheet,
+                                    )
+                            }
                         )
                         .padding(tokens.spacing.sheetPadding),
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         // Profile avatars row
                         Row(
-                            modifier = Modifier.horizontalScroll(rememberScrollState()),
+                            modifier = if (profiles.size > 4) Modifier.horizontalScroll(rememberScrollState()) else Modifier,
                             horizontalArrangement = Arrangement.spacedBy(tokens.spacing.cardPadding),
                             verticalAlignment = Alignment.Top,
                         ) {
@@ -938,6 +970,17 @@ private fun PopupAddProfileBubble(
     val tokens = MaterialTheme.nuvio
     val itemAlpha = remember { Animatable(0f) }
     val itemScale = remember { Animatable(0.4f) }
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+
+    val pressScale by animateFloatAsState(
+        targetValue = if (isPressed) 0.88f else 1f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessMedium,
+        ),
+        label = "addPressScale",
+    )
 
     LaunchedEffect(Unit) {
         delay(delayMs.toLong())
@@ -956,14 +999,8 @@ private fun PopupAddProfileBubble(
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
-            .graphicsLayer {
-                alpha = itemAlpha.value
-                scaleX = itemScale.value
-                scaleY = itemScale.value
-            }
-            .clip(tokens.shapes.compactCard)
             .clickable(
-                interactionSource = remember { MutableInteractionSource() },
+                interactionSource = interactionSource,
                 indication = null,
                 onClick = onClick,
             )
@@ -971,6 +1008,11 @@ private fun PopupAddProfileBubble(
     ) {
         Box(
             modifier = Modifier
+                .graphicsLayer {
+                    alpha = itemAlpha.value
+                    scaleX = itemScale.value * pressScale
+                    scaleY = itemScale.value * pressScale
+                }
                 .size(tokens.components.avatarSize)
                 .clip(tokens.shapes.avatar)
                 .background(tokens.colors.surfaceCard)
@@ -980,7 +1022,7 @@ private fun PopupAddProfileBubble(
             Icon(
                 imageVector = Icons.Rounded.Add,
                 contentDescription = stringResource(Res.string.compose_profile_add_profile),
-                tint = tokens.colors.textMuted,
+                tint = Color.White.copy(alpha = 0.85f),
                 modifier = Modifier.size(tokens.icons.md + NuvioTokens.Space.s2),
             )
         }
@@ -990,7 +1032,7 @@ private fun PopupAddProfileBubble(
         Text(
             text = stringResource(Res.string.compose_profile_add_profile),
             style = MaterialTheme.typography.labelSmall.copy(fontSize = NuvioTokens.Type.labelXs),
-            color = tokens.colors.textMuted,
+            color = Color.White.copy(alpha = 0.85f),
             fontWeight = FontWeight.Medium,
             textAlign = TextAlign.Center,
             maxLines = 1,
@@ -1018,6 +1060,9 @@ private fun PopupProfileBubble(
         profileAvatarImageUrl(profile, avatarItem)
     }
 
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+
     // Per-item entrance animation
     val itemAlpha = remember { Animatable(0f) }
     val itemScale = remember { Animatable(0.4f) }
@@ -1036,10 +1081,14 @@ private fun PopupProfileBubble(
     }
 
     val pressScale by animateFloatAsState(
-        targetValue = if (isSelected) 1.08f else 1f,
+        targetValue = when {
+            isPressed -> 0.88f
+            isSelected -> 1.08f
+            else -> 1f
+        },
         animationSpec = spring(
             dampingRatio = Spring.DampingRatioMediumBouncy,
-            stiffness = Spring.StiffnessLow,
+            stiffness = Spring.StiffnessMedium,
         ),
         label = "pressScale",
     )
@@ -1050,21 +1099,21 @@ private fun PopupProfileBubble(
             .onGloballyPositioned { coordinates ->
                 onBoundsChanged(coordinates.boundsOnScreen())
             }
-            .graphicsLayer {
-                alpha = itemAlpha.value
-                scaleX = itemScale.value * pressScale
-                scaleY = itemScale.value * pressScale
-            }
-            .clip(tokens.shapes.compactCard)
             .clickable(
-                interactionSource = remember { MutableInteractionSource() },
+                interactionSource = interactionSource,
                 indication = null,
                 onClick = onClick,
             )
             .padding(NuvioTokens.Space.s4),
     ) {
         Box(
-            modifier = Modifier.size(52.dp),
+            modifier = Modifier
+                .graphicsLayer {
+                    alpha = itemAlpha.value
+                    scaleX = itemScale.value * pressScale
+                    scaleY = itemScale.value * pressScale
+                }
+                .size(52.dp),
             contentAlignment = Alignment.Center,
         ) {
             Box(
@@ -1151,13 +1200,16 @@ private fun PopupProfileBubble(
             text = profile.name.ifBlank {
                 stringResource(Res.string.profile_label_number, profile.profileIndex)
             },
-            style = MaterialTheme.typography.labelSmall.copy(fontSize = NuvioTokens.Type.labelXs),
-            color = if (isSelected) tokens.colors.accent else tokens.colors.textMuted,
+            style = MaterialTheme.typography.labelSmall.copy(
+                fontSize = NuvioTokens.Type.labelXs,
+                lineHeight = 12.sp,
+            ),
+            color = if (isSelected) tokens.colors.accent else Color.White,
             fontWeight = if (isActive || isSelected) FontWeight.Bold else FontWeight.Medium,
             textAlign = TextAlign.Center,
-            maxLines = 1,
+            maxLines = 2,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.width(56.dp),
+            modifier = Modifier.widthIn(min = 52.dp, max = 64.dp),
         )
     }
 }
