@@ -190,7 +190,7 @@ private class ScaledBitmapPainter(
             dstSize = drawSize,
             alpha = alpha,
             colorFilter = colorFilter,
-            filterQuality = if (cacheSize == drawSize) FilterQuality.None else FilterQuality.Medium,
+            filterQuality = if (cacheSize == drawSize) FilterQuality.Low else FilterQuality.Medium,
         )
     }
 
